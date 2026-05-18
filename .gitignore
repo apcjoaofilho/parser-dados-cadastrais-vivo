@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Pytest
+.pytest_cache/
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+
+# Dados sensíveis (não versionar dados pessoais)
+data/
+!data/.gitkeep
+
+# Saída do parser
+output/
+!output/.gitkeep
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Arquivos temporários do Excel
+~$*.xlsx
+~$*.xls
+
+# Arquivos de banco SQLite temporários
+*.db-journal
+*.db-wal
+*.db-shm
+
+# FICCO local data
+.ficco_local/
+
+
+# Obsidian vault
+FICCO/
+
+
+# Submodulo ficco_importer (gerenciado separadamente)
+tools/ficco_importer/
+

@@ -1,0 +1,171 @@
+# Plano: Distribuição Facilitada para Usuário Leigo (Opção B)
+
+## Objetivo
+Permitir que um usuário **extremamente leigo** execute o parser Vivo sem abrir terminal, digitar comandos ou entender conceitos técnicos. A solução escolhida é um **arquivo `.bat` com seletor de pasta**.
+
+---
+
+## Decisão: Opção B — `.bat` com Seletor de Pasta
+
+### Justificativa
+| Critério | Avaliação |
+|----------|-----------|
+| Facilidade para o usuário | ⭐⭐⭐⭐⭐ (clica no `.bat`, escolhe a pasta, pronto) |
+| Facilidade para nós (devs) | ⭐⭐⭐⭐⭐ (sem build complexo, sem dependências extras) |
+| Manutenção | ⭐⭐⭐⭐⭐ (alterar o `.bat` é trivial) |
+| Distribuição via GitHub | ⭐⭐⭐⭐ (basta incluir no repo; usuário clona ou baixa ZIP) |
+
+### O que o usuário verá
+1. Um arquivo chamado **`Processar Dados Vivo.bat`** na pasta do projeto.
+2. Ao clicar, uma **janela do Windows** aparece pedindo para selecionar a pasta com os `.txt`.
+3. Depois, outra janela pede para selecionar onde salvar o resultado.
+4. O script roda, mostra uma **tela preta com progresso** (logging).
+5. Ao final, diz "Concluído! Pressione qualquer tecla...".
+6. O Excel (`dados_cadastrais_vivo.xlsx`) e o banco SQLite estão na pasta escolhida.
+
+---
+
+## Arquitetura Técnica
+
+### 1. Script `.bat` (`Processar Dados Vivo.bat`)
+```batch
+@echo off
+chcp 65001 >nul
+setlocal enabledelayedexpansion
+
+:: --- Verifica se Python está instalado ---
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo ERRO: Python não está instalado neste computador.
+    echo Por favor, instale o Python a partir de https://python.org
+    pause
+    exit /b 1
+)
+
+:: --- Verifica se as dependências estão instaladas ---
+python -c "import pandas, openpyxl, requests" >nul 2>&1
+if errorlevel 1 (
+    echo Instalando dependências necessárias...
+    python -m pip install pandas openpyxl requests -q
+)
+
+:: --- Seleciona pasta de entrada (arquivos .txt) ---
+echo Selecione a pasta com os arquivos .txt...
+for /f "delims=" %%I in ('powershell -Command "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Selecione a pasta com os arquivos .txt'; $f.ShowDialog() | Out-Null; $f.SelectedPath"') do set "INPUT_DIR=%%I"
+
+if "%INPUT_DIR%"=="" (
+    echo Nenhuma pasta selecionada. Encerrando.
+    pause
+    exit /b 1
+)
+
+:: --- Seleciona pasta de saída ---
+echo Selecione a pasta onde salvar o resultado...
+for /f "delims=" %%I in ('powershell -Command "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Selecione a pasta de saída'; $f.ShowDialog() | Out-Null; $f.SelectedPath"') do set "OUTPUT_DIR=%%I"
+
+if "%OUTPUT_DIR%"=="" (
+    echo Nenhuma pasta selecionada. Encerrando.
+    pause
+    exit /b 1
+)
+
+:: --- Executa o parser ---
+python parse_vivo.py --input "%INPUT_DIR%" --output "%OUTPUT_DIR%"
+
+echo.
+echo ===========================================
+echo PROCESSAMENTO CONCLUIDO!
+echo Arquivos gerados em: %OUTPUT_DIR%
+echo ===========================================
+pause
+```
+
+#### O que esse `.bat` faz:
+1. **Verifica Python**: Se não achar, avisa o usuário com uma mensagem amigável.
+2. **Instala dependências**: Se `pandas`, `openpyxl` ou `requests` faltarem, instala automaticamente via `pip`.
+3. **Abre seletor de pasta**: Usa um **one-liner PowerShell** que abre a janela nativa do Windows (não precisa de Python instalado para isso).
+4. **Executa**: Chama `parse_vivo.py` com os caminhos escolhidos.
+5. **Espera**: `pause` impede que a janela feche sozinha.
+
+### 2. Estrutura de Pastas no GitHub
+```
+obsidian_ficco/
+├── Processar Dados Vivo.bat   <-- novo
+├── parse_vivo.py
+├── geocoding.py
+├── requirements.txt           <-- novo (lista dependências)
+├── data/
+│   └── dados_cadastrais_vivo/
+└── output/                    <-- pasta vazia (para o usuário saber onde olhar)
+```
+
+### 3. Arquivo `requirements.txt`
+```
+pandas>=2.0.0
+openpyxl>=3.1.0
+requests>=2.30.0
+```
+
+---
+
+## Fluxo do Usuário Leigo (Step-by-Step)
+
+### Instalação Inicial (única vez)
+1. O usuário baixa o projeto como **ZIP** do GitHub.
+2. Extrai para a Área de Trabalho (ou qualquer lugar).
+3. **Se não tiver Python**:
+   - O `.bat` avisará na primeira tentativa.
+   - Instala o Python do [python.org](https://python.org) (basta clicar "Install Now" e marcar "Add Python to PATH").
+
+### Uso Diário
+1. Coloca os arquivos `.txt` da Vivo em uma pasta qualquer (ex: `C:\Users\Joao\Downloads\txt_vivo`).
+2. Dá **duplo-clique** em `Processar Dados Vivo.bat`.
+3. Clica na pasta dos `.txt`.
+4. Clica na pasta de saída (pode ser a mesma).
+5. Espera o processamento (com barra de progresso no terminal).
+6. Abre o Excel gerado.
+
+---
+
+## Vantagens da Opção B
+
+| Vantagem | Explicação |
+|----------|------------|
+| **Zero código extra** | O `.bat` é um script de shell, não requer programar GUI |
+| **Nativo do Windows** | O seletor de pasta é a janela padrão do Windows (usuário já conhece) |
+| **Auto-instalação** | Se faltar `pandas` ou `openpyxl`, o `.bat` instala sozinho |
+| **Fácil debugar** | Se der erro, o terminal mostra o log completo (podemos pedir screenshot) |
+| **Portátil** | Funciona em qualquer pasta; não requer instalação do projeto |
+
+---
+
+## Limitações (Documentadas para Futuro)
+
+| Limitação | Mitigação |
+|-----------|-----------|
+| Requer Python instalado | Instruções claras no README; verificação automática no `.bat` |
+| Janela do terminal pode assustar usuários muito leigos | Mensagens em português, amigáveis, com `echo` |
+| Não funciona offline sem Python | Aceitável para MVP; futuramente podemos migrar para `.exe` (Opção D/E) |
+
+---
+
+## Próximos Passos (após aprovação do plano)
+
+1. **Criar** `Processar Dados Vivo.bat` na raiz do projeto.
+2. **Criar** `requirements.txt` com as dependências.
+3. **Atualizar** `README.md` com instruções para usuários leigos (screenshots opcionais).
+4. **Testar** o `.bat` em ambiente limpo (sem Python, sem dependências) para validar a auto-instalação.
+5. **(Opcional/Futuro)** Avaliar compilação para `.exe` via PyInstaller se o feedback de usuários indicar necessidade.
+
+---
+
+## Alternativa Futura: PyInstaller (Opção D/E)
+
+Se o usuário não conseguir instalar Python, podemos compilar:
+```bash
+pip install pyinstaller
+pyinstaller --onefile --add-data "data;dados" parse_vivo.py
+```
+Isso gera um `.exe` de ~20MB que não precisa de Python. **Custo**: build manual a cada release.
+
+**Decisão atual**: Não implementar agora. A Opção B atende 95% dos casos com 5% do esforço.
