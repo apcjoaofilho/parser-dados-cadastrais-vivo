@@ -108,6 +108,9 @@ echo Voce encontrara:
 echo   - dados_cadastrais_vivo.xlsx  (planilha Excel)
 echo   - dados_cadastrais.db         (banco de dados)
 echo.
+echo  ATENCAO: Esses arquivos contem dados pessoais (CPF, nome, endereco).
+echo  Proteja-os: nao compartilhe sem criptografia e apague quando nao precisar mais.
+echo.
 
 :: --- Tenta abrir a pasta de saida ---
 start explorer "%OUTPUT_DIR%"

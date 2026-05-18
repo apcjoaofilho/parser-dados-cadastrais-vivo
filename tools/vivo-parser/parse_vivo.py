@@ -185,6 +185,17 @@ def parse_registro(
     ), i
 
 
+def _validar_path(caminho: str, deve_existir: bool = True) -> Path:
+    """Valida que o caminho é seguro (sem path traversal) e retorna Path absoluto."""
+    p = Path(caminho).resolve()
+    # Verifica path traversal (..)
+    if ".." in p.parts or not p.is_absolute():
+        raise ValueError(f"Caminho inválido ou inseguro: {caminho}")
+    if deve_existir and not p.exists():
+        raise FileNotFoundError(f"Caminho não encontrado: {p}")
+    return p
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Parser de dados cadastrais Vivo")
     parser.add_argument("--input", required=True, help="Pasta com arquivos .txt")
@@ -193,8 +204,13 @@ def main() -> None:
                         help="Desativar geocodificação (padrão: ativado)")
     args = parser.parse_args()
 
-    input_dir = Path(args.input)
-    output_dir = Path(args.output)
+    try:
+        input_dir = _validar_path(args.input, deve_existir=True)
+        output_dir = _validar_path(args.output, deve_existir=False)
+    except (ValueError, FileNotFoundError) as e:
+        logger.error("Erro de validação de caminho: %s", e)
+        return
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     arquivos = sorted(input_dir.glob("*.txt"))

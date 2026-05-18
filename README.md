@@ -3,6 +3,12 @@
 Ferramenta para extrair, consolidar, deduplicar, geocodificar e formatar dados cadastrais de linhas telefonicas Vivo a partir de relatorios em texto (.txt).
 
 > **Aviso de Privacidade:** Os arquivos `.txt` contêm CPFs, nomes e endereços reais. **Nunca commite esses arquivos no GitHub.** Eles ficam automaticamente ignorados pelo `.gitignore` na pasta `data/`.
+>
+> **Seguranca dos arquivos de saida:** O Excel (`dados_cadastrais_vivo.xlsx`) e o banco SQLite (`dados_cadastrais.db`) gerados pelo programa tambem contêm dados pessoais. Proteja esses arquivos:
+> - Nao os envie por e-mail ou mensageiros sem criptografia
+> - Nao os deixe em pastas compartilhadas na rede
+> - Apague-os quando nao forem mais necessarios
+> - O cache de geocodificacao (`geocoding_cache` dentro do `.db`) tambem armazena endereços completos
 
 ---
 

@@ -47,7 +47,13 @@ def _hash_endereco(endereco_completo: str) -> str:
 
 
 def criar_tabela_cache(conn: sqlite3.Connection) -> None:
-    """Cria tabela de cache de geocodificação se não existir."""
+    """
+    Cria tabela de cache de geocodificação se não existir.
+
+    AVISO DE SEGURANÇA: Esta tabela armazena `endereco_completo` em texto
+    plano (PII). O arquivo `.db` que a contém deve ser protegido como
+    qualquer outro arquivo com dados pessoais.
+    """
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS geocoding_cache (
