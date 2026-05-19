@@ -11,6 +11,10 @@ build/
 # Pytest
 .pytest_cache/
 
+# Coverage
+.coverage
+htmlcov/
+
 # Ambientes virtuais
 venv/
 .venv/

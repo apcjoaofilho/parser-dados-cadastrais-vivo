@@ -205,13 +205,39 @@ python tools/vivo-parser/parse_vivo.py --input "pasta/txts" --output "pasta/said
 
 ---
 
+## Test Suite
+
+### Unit Tests (`tools/shared/tests/test_parse_vivo.py`)
+- 10 testes cobrindo regexes, parsing de registros, deduplicação, ordenação, estilização Excel e geocoding
+- Todos passando
+
+### Integration Tests (`tools/shared/tests/test_integration.py`)
+- 15 testes end-to-end cobrindo:
+  - Pipeline completo com arquivo .txt real
+  - Arquivos vazios
+  - Deduplicação entre múltiplos arquivos
+  - Ordenação por data descendente
+  - Excel com colunas de geocoding
+  - Cache hit (sem requisição HTTP)
+  - Falha de geocodificação
+  - Variações de endereço (cascata)
+  - **Segurança:** path traversal, paths relativos, validação de existência
+  - Registros com endereço multilinha
+  - Blocos sem registros
+- Todos passando
+
+**Total: 25/25 tests passing**
+
+---
+
 ## Next Steps
 
-- [ ] Adicionar testes de integração com arquivo .txt real
+- [x] Adicionar testes de integração com arquivo .txt real
 - [ ] Implementar logging estruturado (JSON) para auditoria
 - [ ] Avaliar substituição do Nominatim por OpenCage para maior precisão
 - [ ] Adicionar validação de CPF (módulo `validate-doc-br`)
 - [ ] Criar parser para outros formatos (TIM, Claro) reutilizando `pipeline.py`
+- [ ] Criar CHANGELOG.md e tag de release v2.0.0
 
 ---
 
@@ -219,5 +245,5 @@ python tools/vivo-parser/parse_vivo.py --input "pasta/txts" --output "pasta/said
 
 - **Date:** 2026-05-18
 - **Depth:** Full (entry point + dependencies depth 2)
-- **Files touched:** `parse_vivo.py`, `pipeline.py`, `geocoding.py`, `Processar Dados Vivo.bat`
-- **Tests:** `tools/shared/tests/test_parse_vivo.py` (10/10 passing)
+- **Files touched:** `parse_vivo.py`, `pipeline.py`, `geocoding.py`, `Processar Dados Vivo.bat`, `test_parse_vivo.py`, `test_integration.py`
+- **Tests:** 25/25 passing (10 unit + 15 integration)

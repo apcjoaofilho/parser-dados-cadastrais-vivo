@@ -187,9 +187,12 @@ def parse_registro(
 
 def _validar_path(caminho: str, deve_existir: bool = True) -> Path:
     """Valida que o caminho é seguro (sem path traversal) e retorna Path absoluto."""
-    p = Path(caminho).resolve()
-    # Verifica path traversal (..)
+    p = Path(caminho)
+    # Verifica path traversal (..) e paths relativos antes de resolver
     if ".." in p.parts or not p.is_absolute():
+        raise ValueError(f"Caminho inválido ou inseguro: {caminho}")
+    p = p.resolve()
+    if not p.is_absolute():
         raise ValueError(f"Caminho inválido ou inseguro: {caminho}")
     if deve_existir and not p.exists():
         raise FileNotFoundError(f"Caminho não encontrado: {p}")
@@ -198,6 +201,8 @@ def _validar_path(caminho: str, deve_existir: bool = True) -> Path:
 
 def _validar_caminho(caminho: Path, nome: str) -> None:
     """Valida que o caminho é absoluto e não tenta path traversal."""
+    if not caminho.is_absolute():
+        raise ValueError(f"Caminho não permitido para {nome}: {caminho}")
     try:
         caminho_resolvido = caminho.resolve()
     except (OSError, RuntimeError) as e:
@@ -272,6 +277,16 @@ def main() -> None:
     logger.info("Clientes únicos: %d", df_dedup["cliente"].nunique())
     logger.info("Situações: %s", df_dedup["situacao"].value_counts().to_dict())
     logger.info("=" * 50)
+
+
+# Helper para testes - permite parse de linhas em memória
+def parse_arquivo_from_lines(linhas: list[str], nome: str = "teste.txt") -> list[RegistroVivo]:
+    """Parseia registros a partir de uma lista de linhas (usado em testes)."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / nome
+        path.write_text("\n".join(linhas), encoding="utf-8")
+        return parse_arquivo(path)
 
 
 if __name__ == "__main__":

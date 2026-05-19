@@ -338,6 +338,8 @@ def selecionar_snapshots_recentes(df: pd.DataFrame) -> pd.DataFrame:
 
 def _validar_caminho(caminho: Path, nome: str) -> None:
     """Valida que o caminho é absoluto e não tenta path traversal."""
+    if not caminho.is_absolute():
+        raise ValueError(f"Caminho não permitido para {nome}: {caminho}")
     try:
         caminho_resolvido = caminho.resolve()
     except (OSError, RuntimeError) as e:
