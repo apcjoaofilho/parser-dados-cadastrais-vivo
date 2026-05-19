@@ -96,6 +96,10 @@ CAMPOS_VALIDOS = {
 
 def extrair_texto_pdf_de_bytes(data: bytes) -> str:
     """Abre PDF a partir de bytes e retorna texto concatenado de todas as páginas."""
+    # Validacao de magic number para evitar processamento de arquivos nao-PDF
+    if not data.startswith(b"%PDF"):
+        logger.warning("Arquivo rejeitado: magic number invalido (nao e PDF)")
+        return ""
     texto_paginas: list[str] = []
     try:
         doc = fitz.open(stream=data, filetype="pdf")
@@ -124,10 +128,13 @@ def extrair_cpf_do_texto(texto: str) -> str | None:
 
 
 def filtrar_linhas(linhas: list[str]) -> list[str]:
-    """Remove headers, footers e lixo das linhas do PDF."""
+    """Remove headers, footers e lixo das linhas do PDF. Limita tamanho de linha para mitigar ReDoS."""
     filtradas: list[str] = []
     for linha in linhas:
         stripped = linha.strip()
+        if len(stripped) > MAX_LINE_LENGTH:
+            logger.warning("Linha truncada (%d chars) para mitigar ReDoS", len(stripped))
+            stripped = stripped[:MAX_LINE_LENGTH]
         if stripped in LIXO_EXATO:
             continue
         if RE_HEADER_FOOTER.match(stripped):
@@ -235,18 +242,66 @@ def _parse_registro_tim(
     ), i
 
 
+# Limites de seguranca para processamento de ZIPs
+MAX_ZIP_SIZE_BYTES = 500 * 1024 * 1024        # 500 MB
+MAX_PDF_SIZE_BYTES = 100 * 1024 * 1024        # 100 MB
+MAX_PDFS_PER_ZIP = 1000
+MAX_COMPRESSION_RATIO = 100
+MAX_LINE_LENGTH = 4096
+
+
+def _validar_tamanho_zip(zf: zipfile.ZipFile) -> bool:
+    """Verifica se o ZIP nao e um zip bomb e esta dentro dos limites."""
+    total_uncompressed = 0
+    total_compressed = 0
+    for info in zf.infolist():
+        total_uncompressed += info.file_size
+        total_compressed += info.compress_size
+        ratio = info.file_size / max(info.compress_size, 1)
+        if ratio > MAX_COMPRESSION_RATIO and info.file_size > 1024 * 1024:
+            logger.error(
+                "ZIP rejeitado: ratio de compressao suspeito para %s (%.0fx)",
+                info.filename, ratio,
+            )
+            return False
+    if total_uncompressed > MAX_ZIP_SIZE_BYTES:
+        logger.error("ZIP rejeitado: tamanho descomprimido total %d MB > limite %d MB",
+                     total_uncompressed // (1024 * 1024), MAX_ZIP_SIZE_BYTES // (1024 * 1024))
+        return False
+    return True
+
+
+def _sanitizar_nome_arquivo(nome: str) -> str:
+    """Remove path traversal de nomes de arquivo para uso em logs."""
+    return Path(nome).name
+
+
 def processar_zip(caminho_zip: Path) -> list[RegistroTim]:
     """Processa um arquivo .zip contendo PDFs da TIM em subpastas."""
     todos_registros: list[RegistroTim] = []
     try:
         with zipfile.ZipFile(caminho_zip, "r") as zf:
+            if not _validar_tamanho_zip(zf):
+                return []
+
             pdfs = [name for name in zf.namelist() if name.lower().endswith(".pdf")]
+            if len(pdfs) > MAX_PDFS_PER_ZIP:
+                logger.error("ZIP rejeitado: %d PDFs > limite %d", len(pdfs), MAX_PDFS_PER_ZIP)
+                return []
             if not pdfs:
                 logger.warning("Nenhum PDF encontrado em %s", caminho_zip.name)
                 return []
 
             for nome_pdf in pdfs:
                 try:
+                    info = zf.getinfo(nome_pdf)
+                    if info.file_size > MAX_PDF_SIZE_BYTES:
+                        logger.error("PDF rejeitado: %s (%d MB) > limite %d MB",
+                                     _sanitizar_nome_arquivo(nome_pdf),
+                                     info.file_size // (1024 * 1024),
+                                     MAX_PDF_SIZE_BYTES // (1024 * 1024))
+                        continue
+
                     data = zf.read(nome_pdf)
                     texto = extrair_texto_pdf_de_bytes(data)
                     if not texto.strip():
@@ -255,16 +310,16 @@ def processar_zip(caminho_zip: Path) -> list[RegistroTim]:
                     # Determina CPF da consulta
                     cpf = extrair_cpf_do_texto(texto) or extrair_cpf_do_nome_arquivo(nome_pdf) or ""
                     if not cpf:
-                        logger.warning("CPF não identificado para %s em %s", nome_pdf, caminho_zip.name)
+                        logger.warning("CPF não identificado para %s", _sanitizar_nome_arquivo(nome_pdf))
 
                     regs = parse_texto_tim(texto, cpf, f"{caminho_zip.name}/{nome_pdf}")
                     if regs:
-                        logger.debug("%s/%s → %d registros", caminho_zip.name, nome_pdf, len(regs))
+                        logger.debug("%s/%s → %d registros", caminho_zip.name, _sanitizar_nome_arquivo(nome_pdf), len(regs))
                     todos_registros.extend(regs)
                 except Exception as e:
-                    logger.error("Erro ao processar %s em %s: %s", nome_pdf, caminho_zip.name, e, exc_info=True)
+                    logger.error("Erro ao processar %s: %s", _sanitizar_nome_arquivo(nome_pdf), e)
     except Exception as e:
-        logger.error("Erro ao abrir ZIP %s: %s", caminho_zip, e, exc_info=True)
+        logger.error("Erro ao abrir ZIP %s: %s", caminho_zip, e)
 
     return todos_registros
 
@@ -281,6 +336,16 @@ def selecionar_snapshots_recentes(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _validar_caminho(caminho: Path, nome: str) -> None:
+    """Valida que o caminho é absoluto e não tenta path traversal."""
+    try:
+        caminho_resolvido = caminho.resolve()
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f"Caminho inválido para {nome}: {caminho}") from e
+    if ".." in caminho.parts or not caminho_resolvido.is_absolute():
+        raise ValueError(f"Caminho não permitido para {nome}: {caminho}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Parser de dados cadastrais TIM")
     parser.add_argument("--input", required=True, help="Pasta com arquivos .zip da TIM")
@@ -293,6 +358,8 @@ def main() -> None:
 
     input_dir = Path(args.input)
     output_dir = Path(args.output)
+    _validar_caminho(input_dir, "input")
+    _validar_caminho(output_dir, "output")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     arquivos = sorted(input_dir.glob("*.zip"))

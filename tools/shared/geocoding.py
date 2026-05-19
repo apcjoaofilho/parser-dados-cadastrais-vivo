@@ -42,8 +42,8 @@ def _normalizar_endereco(endereco: str) -> str:
 
 
 def _hash_endereco(endereco_completo: str) -> str:
-    """Gera hash MD5 do endereço para uso como chave de cache."""
-    return hashlib.md5(endereco_completo.encode("utf-8")).hexdigest()
+    """Gera hash SHA-256 do endereço para uso como chave de cache."""
+    return hashlib.sha256(endereco_completo.encode("utf-8")).hexdigest()
 
 
 def criar_tabela_cache(conn: sqlite3.Connection) -> None:
